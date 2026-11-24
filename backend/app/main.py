@@ -1,25 +1,31 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from app.routers.fgo import router as fgo_router
 from app.config import settings
 from app.utils.logging import logger
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    settings.validate_live_mode()
+    yield
 app = FastAPI(
     title="Conecta FGO - Banco do Brasil Integration API",
-    description="API de Integração com o Fundo de Garantia de Operações (FGO) do Banco do Brasil",
-    version="1.0.0"
+    description="API de IntegraÃ§Ã£o com o Fundo de Garantia de OperaÃ§Ãµes (FGO) do Banco do Brasil",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS to allow frontend communication from any local origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT"],
+    allow_headers=["Content-Type"],
 )
 
 # Include FGO router under /api
@@ -34,7 +40,6 @@ async def health_check() -> dict:
     return {
         "status": "healthy",
         "mock_mode": settings.MOCK_MODE,
-        "bb_api_url": settings.BB_FGO_BASE_URL,
         "mtls_configured": cert_status
     }
 

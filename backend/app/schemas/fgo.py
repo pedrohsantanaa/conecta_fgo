@@ -1,5 +1,6 @@
+from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class PreValidationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -102,7 +103,53 @@ class PreValidationRequest(BaseModel):
         None,
         description="Valor da Condição Especial de acordo com o Código Tipo Condição Especial."
     )
+    codigoInstituicaoFinanceira: Optional[int] = Field(
+        None,
+        description="Código da instituição financeira (presente nos dados de homologação do BB)."
+    )
 
+    @field_validator(
+        "codigoAgenteFinanceiro", "codigoFundoGarantidor", "numeroAgenciaContratanteOperacao",
+        "codigoIbgeMunicipio", "codigoTipoPessoa", "codigoTipoPublicoAlvo",
+        "codigoTipoModalidadeCredito", "codigoTipoFinalidadeCredito", "codigoTipoFonteRecurso",
+        "codigoTipoProgramaCredito", "codigoTipoCronogramaAmortizacao",
+        "codigoTipoCondicaoEspecial", "codigoTipoFormalizacao", "numeroCpfQualificadorOperacao",
+    )
+    @classmethod
+    def validate_positive_codes(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("O valor deve ser positivo.")
+        return value
+
+    @field_validator("valorFaturamentoBrutoAnual", "valorOperacaoCredito", "valorSubsidioCredito")
+    @classmethod
+    def validate_financial_values(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("O valor nao pode ser negativo.")
+        return value
+
+    @field_validator("percentualGarantiaOperacaoCredito")
+    @classmethod
+    def validate_guarantee_percentage(cls, value: float) -> float:
+        if not 0 <= value <= 100:
+            raise ValueError("O percentual de garantia deve estar entre 0 e 100.")
+        return value
+
+    @field_validator("dataFormalizacaoOperacao", "dataVencimentoOperacao")
+    @classmethod
+    def validate_dates(cls, value: int) -> int:
+        try:
+            datetime.strptime(str(value), "%Y%m%d")
+        except ValueError as error:
+            raise ValueError("A data deve estar no formato AAAAMMDD e ser valida.") from error
+        return value
+
+    @model_validator(mode="after")
+    def validate_identifiers(self) -> "PreValidationRequest":
+        expected_length = 11 if self.codigoTipoPessoa == 1 else 14
+        if len(self.codigoIdentificadorSrf) != expected_length:
+            raise ValueError("CPF ou CNPJ deve conter somente digitos e ter o tamanho esperado.")
+        return self
 
 class PreValidationResponse(BaseModel):
     valorTotalFinanciado: float = Field(
