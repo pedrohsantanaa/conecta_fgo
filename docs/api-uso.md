@@ -276,7 +276,7 @@ estruturados: `bb_error_code`, `bb_user_help`, `bb_detail`,
 | 275 | CPF qualificador invalido na Receita Federal | CPF com digitos verificadores validos |
 | 281 | CPF qualificador fora do CadUnico | ex.: `52998224725`, `11144477735` |
 | 5 | Mutuario nao cadastrado (caminho PF) | exigido CPF de mutuario cadastrado pelo BB |
-| 277 | Operacao nao qualificada como "mulher" | **pendente de dado de teste do BB** |
+| 277 | Operacao nao qualificada como "mulher" (regra de CARTEIRA do agente) | **pendente de configuracao/dado do BB** — nao e resolvivel por payload |
 | 901 | Dados inconsistentes (ex.: reserva inexistente) | conferir o numero da reserva |
 | E6500 (500) | Erro transitório do gateway do BB | **repetir a chamada** |
 

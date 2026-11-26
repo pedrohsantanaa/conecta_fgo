@@ -165,18 +165,76 @@ Achados novos:
   cancelamentos `fb9a73b2-7514-4809-a8da-62575c23e3d5` e
   `55ee868a-e840-41bf-8cc0-67622fd88dca`.
 
+### Dados novos de teste (26/11/2026, tarde)
+
+Payload variado com dados novos (CNPJ `64466565000141`, CPF qualificador
+`94490490259`, faturamento 30000, operação 10000, `valorCondicaoEspecial: 0`,
+`codigoInstituicaoFinanceira: 0`):
+
+```json
+{
+  "codigoAgenteFinanceiro": 77,
+  "codigoIdentificadorExternoOperacao": "ABC1234",
+  "codigoFundoGarantidor": 5,
+  "numeroAgenciaContratanteOperacao": 1,
+  "codigoIbgeMunicipio": 354340,
+  "codigoTipoPessoa": 2,
+  "codigoIdentificadorSrf": "64466565000141",
+  "codigoTipoPublicoAlvo": 2,
+  "valorFaturamentoBrutoAnual": 30000,
+  "valorOperacaoCredito": 10000,
+  "percentualGarantiaOperacaoCredito": 100,
+  "codigoTipoModalidadeCredito": 1,
+  "codigoTipoFinalidadeCredito": 1,
+  "codigoTipoFonteRecurso": 11,
+  "codigoTipoProgramaCredito": 44,
+  "dataFormalizacaoOperacao": 20261126,
+  "dataVencimentoOperacao": 20271126,
+  "codigoTipoCronogramaAmortizacao": 1,
+  "codigoTipoCondicaoEspecial": 1,
+  "dataDespachoExternoOperacao": 0,
+  "codigoTipoFormalizacao": 1,
+  "valorSubsidioCredito": 0,
+  "numeroCpfQualificadorOperacao": 94490490259,
+  "valorCondicaoEspecial": 0,
+  "codigoInstituicaoFinanceira": 0
+}
+```
+
+Resultado: **422 errorCode 277** (correlationId `1170b79d-d8e2-4650-85f1-33f3b8dda26d`),
+com `userHelp`: *"O percent de oper qualificadas como \"mulher\" na carteira do
+agente está abaixo do mínimo"*.
+
+Conclusões:
+
+- Os dados novos passam nas **regras 1–14**: CNPJ do mutuário aceito (sem erro 5)
+  e CPF qualificador `94490490259` validado na Receita Federal (275) e no
+  CadÚnico (281).
+- `valorCondicaoEspecial: 0` e `codigoInstituicaoFinanceira: 0` são aceitos.
+- A regra 277 **não é resolvível por payload**: o `userHelp` fala em "percent de
+  oper qualificadas como mulher na carteira do agente" — regra de CARTEIRA do
+  agente 77, não de campos da requisição. Confirma a hipótese da pendência 3.
+
 ## Pendências (dados de teste do BB)
 
 O gargalo atual exige o pacote de dados de homologação do BB:
 
 1. **CPF/CNPJ de mutuário** cadastrado na base de teste (caminho alvo 7/PF
    retorna errorCode 5 para CPFs comuns, mesmo com dígitos válidos).
+   *Atualização 26/11*: o caminho PJ (alvo 2) aceita o CNPJ `64466565000141`;
+   o gargalo de mutuário parece restrito ao caminho PF/alvo 7.
 2. **CPF qualificador qualificado como "mulher"** — a regra 277 exige que a
    operação se qualifique como mulher (percentual mínimo da carteira do agente).
-   A qualificação provavelmente vem do qualificador/mutuário, não de campo do
-   payload.
+   *Atualização 26/11*: `94490490259` passa Receita (275) e CadÚnico (281), mas
+   **não** atende a regra 277. A qualificação não vem de campo do payload.
 3. Confirmação sobre a regra do percentual mínimo "mulher" para o agente 77 com
-   carteira zerada.
+   carteira zerada. *Atualização 26/11*: o `userHelp` ("O percent de oper
+   qualificadas como mulher na carteira do agente está abaixo do mínimo")
+   confirma tratar-se de regra de CARTEIRA do agente. Pergunta ao suporte do BB:
+   a regra 277 pode ser atendida com carteira zerada, ou é preciso cadastrar a
+   qualificação "mulher" do mutuário/qualificador? Usar os correlationIds de
+   26/11 como evidência (`885fcb03-5ac4-4549-8b15-47159c10655e`,
+   `1170b79d-d8e2-4650-85f1-33f3b8dda26d`, entre outros da seção de reteste).
 
 ## Sequência de teste quando os dados chegarem
 
