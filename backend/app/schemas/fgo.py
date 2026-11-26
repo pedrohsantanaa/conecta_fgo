@@ -1,8 +1,27 @@
+"""
+Modelos Pydantic das requisicoes e respostas da API FGO do Banco do Brasil.
+
+PreValidationRequest -> corpo dos passos 1 e 2 (pre-validacao, com ou sem reserva).
+CancellationRequest  -> corpo do passo 3 (cancelamento), com aliases no padrao do BB.
+Os modelos de resposta espelham exatamente o contrato devolvido pelo fundo.
+
+Os validadores replicam regras de negocio/formato descobertas na homologacao
+(consulte docs/homologacao-fgo.md para a cadeia completa de validacoes do BB).
+"""
+
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class PreValidationRequest(BaseModel):
+    """
+    Corpo da pre-validacao (POST /pre-validacoes e /pre-validacoes/reservas).
+
+    Os nomes dos campos seguem o contrato do BB (camelCase) e sao encaminhados
+    como estao. Regras validadas localmente aqui evitam uma ida ao BB tola
+    (datas invalidas, percentual fora da faixa, CPF/CNPJ com tamanho errado).
+    """
+
     model_config = ConfigDict(populate_by_name=True)
 
     codigoAgenteFinanceiro: int = Field(
@@ -108,6 +127,10 @@ class PreValidationRequest(BaseModel):
         description="Código da instituição financeira (presente nos dados de homologação do BB)."
     )
 
+    # --- Validadores locais (antes de chamar o BB) ---
+    # Reproduzem restricoes de formato do contrato; as regras de NEGOCIO
+    # (fundo habilitado, programa permitido, margem etc.) so o BB valida.
+
     @field_validator(
         "codigoAgenteFinanceiro", "codigoFundoGarantidor", "numeroAgenciaContratanteOperacao",
         "codigoIbgeMunicipio", "codigoTipoPessoa", "codigoTipoPublicoAlvo",
@@ -117,6 +140,7 @@ class PreValidationRequest(BaseModel):
     )
     @classmethod
     def validate_positive_codes(cls, value: int) -> int:
+        """Codigos de dominio do BB sao inteiros positivos."""
         if value <= 0:
             raise ValueError("O valor deve ser positivo.")
         return value
@@ -124,6 +148,7 @@ class PreValidationRequest(BaseModel):
     @field_validator("valorFaturamentoBrutoAnual", "valorOperacaoCredito", "valorSubsidioCredito")
     @classmethod
     def validate_financial_values(cls, value: float) -> float:
+        """Valores financeiros nao podem ser negativos."""
         if value < 0:
             raise ValueError("O valor nao pode ser negativo.")
         return value
@@ -131,6 +156,7 @@ class PreValidationRequest(BaseModel):
     @field_validator("percentualGarantiaOperacaoCredito")
     @classmethod
     def validate_guarantee_percentage(cls, value: float) -> float:
+        """Percentual da garantia FGO: 0 a 100, com duas casas decimais (ex.: 80.05)."""
         if not 0 <= value <= 100:
             raise ValueError("O percentual de garantia deve estar entre 0 e 100.")
         return value
@@ -138,6 +164,7 @@ class PreValidationRequest(BaseModel):
     @field_validator("dataFormalizacaoOperacao", "dataVencimentoOperacao")
     @classmethod
     def validate_dates(cls, value: int) -> int:
+        """Datas no formato AAAAMMDD (ex.: 20261126), como inteiro, e validas no calendario."""
         try:
             datetime.strptime(str(value), "%Y%m%d")
         except ValueError as error:
@@ -146,12 +173,18 @@ class PreValidationRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_identifiers(self) -> "PreValidationRequest":
+        """
+        Tamanho do documento do mutuario conforme o tipo de pessoa:
+        codigoTipoPessoa 1 (PF) -> codigoIdentificadorSrf com 11 digitos (CPF);
+        codigoTipoPessoa 2 (PJ) -> codigoIdentificadorSrf com 14 digitos (CNPJ).
+        """
         expected_length = 11 if self.codigoTipoPessoa == 1 else 14
         if len(self.codigoIdentificadorSrf) != expected_length:
             raise ValueError("CPF ou CNPJ deve conter somente digitos e ter o tamanho esperado.")
         return self
 
 class PreValidationResponse(BaseModel):
+    """Resposta do passo 1 (pre-validacao sem reserva)."""
     valorTotalFinanciado: float = Field(
         ...,
         description="Retorna o valor total já financiado/garantido/comprometido do mutuário com garantia do Fundo Garantidor."
@@ -163,6 +196,12 @@ class PreValidationResponse(BaseModel):
 
 
 class PreValidationReserveResponse(BaseModel):
+    """
+    Resposta do passo 2 (pre-validacao com reserva).
+
+    numeroReservaPreValidacao e o campo-chave: guarde-o para o cancelamento
+    (passo 3) caso a operacao nao seja formalizada.
+    """
     numeroReservaPreValidacao: Optional[int] = Field(
         None,
         description="Retorna o número da reserva da pré-validação registrada no Fundo Garantidor."
@@ -178,6 +217,14 @@ class PreValidationReserveResponse(BaseModel):
 
 
 class CancellationRequest(BaseModel):
+    """
+    Corpo do passo 3 (cancelamento de reserva).
+
+    O contrato do BB exige chaves COM ESPACOS — por isso os aliases
+    ("Codigo Agente Financeiro", etc.). No JSON enviado, use exatamente essas
+    chaves; em codigo Python, use os nomes snake_case.
+    """
+
     model_config = ConfigDict(populate_by_name=True)
 
     codigo_agente_financeiro: int = Field(
@@ -198,6 +245,7 @@ class CancellationRequest(BaseModel):
 
 
 class CancellationResponse(BaseModel):
+    """Resposta do passo 3: status legivel + dados brutos do BB quando houver."""
     status: str = Field(..., description="Status do cancelamento.")
     mensagem: str = Field(..., description="Mensagem de retorno do cancelamento.")
     dados_cancelamento: Optional[dict] = Field(None, description="Dados originais retornados pela API se houver.")

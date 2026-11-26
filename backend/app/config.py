@@ -1,3 +1,13 @@
+"""
+Configuracao central do backend (lida de backend/.env e de variaveis de ambiente).
+
+Dois modos de operacao:
+    MOCK_MODE=true  -> o servico FGO responde simulado, sem chamar o Banco do Brasil.
+                       Ideal para desenvolvimento e testes de contrato.
+    MOCK_MODE=false -> chamadas reais a homologacao do BB (fgo.mtls.api.hm.bb.com.br).
+                       Exige credenciais BB + certificado mTLS + chave privada.
+"""
+
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -6,6 +16,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
+    """Atributos com MAIUSCULAS espelham as variaveis de backend/.env."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -17,23 +29,32 @@ class Settings(BaseSettings):
     MOCK_MODE: bool = True
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     
+    # Ambiente de HOMOLOGACAO do BB (mTLS obrigatorio).
     BB_FGO_BASE_URL: str = "https://fgo.mtls.api.hm.bb.com.br/v2"
     # A barra final e obrigatoria: a regra do WAF do BB bloqueia POST em /oauth/token sem ela.
     BB_OAUTH_TOKEN_URL: str = "https://oauth.hm.bb.com.br/oauth/token/"
     BB_OAUTH_SCOPE: str = "fgo.requisicao"
     
+    # Credenciais do portal de APIs do BB (clientID/clientSecret) e a
+    # "developer application key", enviada como query param `gw-dev-app-key`.
     BB_CLIENT_ID: str = ""
     BB_CLIENT_SECRET: str = ""
     BB_GW_DEV_APP_KEY: str = ""
     
+    # Caminhos do par de certificados mTLS (ver get_cert_paths).
     BB_CERT_PATH: str = "certs/client_cert.pem"
     BB_KEY_PATH: str = "certs/client_key.pem"
     
-
+ 
     def get_cert_paths(self) -> tuple[str, str] | None:
         """
-        Returns absolute paths of the certificate and private key files if they exist.
-        Returns None if files are missing or incomplete.
+        Retorna os caminhos absolutos (certificado, chave privada) se existirem
+        e forem validos; caso contrario, None.
+
+        Importante (lição da homologação): o client_cert.pem deve conter SOMENTE
+        o certificado "leaf" do cliente. Enviar a cadeia completa (leaf +
+        intermediarias + raiz) faz o gateway responder `400 The SSL certificate
+        error`. Arquivos que ainda sao placeholders ("[Insira...") sao ignorados.
         """
         cert_path = Path(self.BB_CERT_PATH)
         if not cert_path.is_absolute():
@@ -60,7 +81,12 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     def live_mode_error(self) -> str | None:
-        """Return a safe configuration error when a real BB call cannot be made."""
+        """
+        Retorna uma mensagem segura de erro de configuracao quando uma chamada
+        real ao BB nao pode ser feita; None quando esta tudo pronto (ou em mock).
+
+        A mensagem e generica de proposito: nao expoe qual credencial falta.
+        """
         if self.MOCK_MODE:
             return None
 
@@ -78,6 +104,7 @@ class Settings(BaseSettings):
         return None
 
     def validate_live_mode(self) -> None:
+        """Levanta RuntimeError no boot (ou antes de chamar o BB) se a configuracao live estiver incompleta."""
         error = self.live_mode_error()
         if error:
             raise RuntimeError(error)
