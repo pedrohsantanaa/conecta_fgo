@@ -229,17 +229,17 @@ class CancellationRequest(BaseModel):
 
     codigo_agente_financeiro: int = Field(
         ...,
-        alias="Codigo Agente Financeiro",
+        alias="codigoAgenteFinanceiro",
         description="Código do Agente Financeiro, atribuído pelo Administrador."
     )
     codigo_fundo_garantidor: int = Field(
         ...,
-        alias="Codigo Fundo Garantidor",
+        alias="codigoFundoGarantidor",
         description="Identifica o código do fundo garantidor da operação de crédito."
     )
     numero_reserva_pre_validacao: int = Field(
         ...,
-        alias="Numero Reserva Pre Validacao",
+        alias="numeroReservaPreValidacao",
         description="Identifica o número da reserva da pré-validação registrada no GFG, a ser cancelada."
     )
 

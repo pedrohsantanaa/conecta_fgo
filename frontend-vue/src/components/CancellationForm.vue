@@ -31,9 +31,9 @@ watch(() => props.prefillData, (newData) => {
 
 const handleSubmit = async () => {
   const payload = {
-    "Codigo Agente Financeiro": parseInt(formState.codigo_agente_financeiro, 10),
-    "Codigo Fundo Garantidor": parseInt(formState.codigo_fundo_garantidor, 10),
-    "Numero Reserva Pre Validacao": parseInt(formState.numero_reserva_pre_validacao, 10)
+    "codigoAgenteFinanceiro": parseInt(formState.codigo_agente_financeiro, 10),
+    "codigoFundoGarantidor": parseInt(formState.codigo_fundo_garantidor, 10),
+    "numeroReservaPreValidacao": parseInt(formState.numero_reserva_pre_validacao, 10)
   }
 
   loading.value = true
